@@ -20,6 +20,7 @@ import java.io.BufferedInputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -28,6 +29,7 @@ import org.appcelerator.kroll.KrollDict;
 import org.appcelerator.titanium.TiApplication;
 import org.appcelerator.titanium.util.TiConvert;
 import org.appcelerator.titanium.util.TiRHelper;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 public class TiFirebaseMessagingService extends FirebaseMessagingService
@@ -111,6 +113,24 @@ public class TiFirebaseMessagingService extends FirebaseMessagingService
 			showNotification = false;
 		}
 
+		if (params.get("data") != null && params.get("data") != "" && ((String) params.get("data")).startsWith("{")) {
+			Log.d(TAG, "Parsing nested data JSON string...");
+			try {
+				JSONObject json = new JSONObject((String) params.get("data"));
+
+				Iterator<String> keys = json.keys();
+				while (keys.hasNext()) {
+					String jKey = keys.next();
+					String jValue = json.getString(jKey);
+					Log.d(TAG, "JSON key: \"" + jKey + "\" value: \"" + jValue + "\"");
+
+					params.put(jKey, jValue);
+				}
+			} catch(JSONException ex) {
+				Log.d(TAG, "JSON error: " + ex.getMessage());
+			}
+		}
+
 		if (params.get("force_show_in_foreground") != null && params.get("force_show_in_foreground") != "") {
 			showNotification = showNotification || TiConvert.toBoolean(params.get("force_show_in_foreground"), false);
 		}
@@ -123,6 +143,7 @@ public class TiFirebaseMessagingService extends FirebaseMessagingService
 			builder_defaults |= Notification.DEFAULT_VIBRATE;
 		}
 
+		Log.d(TAG, "Checking notification data for content...");
 		if (
 			params.get("title") == null &&
 			params.get("message") == null &&
@@ -134,6 +155,7 @@ public class TiFirebaseMessagingService extends FirebaseMessagingService
 		) {
 			// no actual content - don't show it
 			showNotification = false;
+			Log.d(TAG, "No content to show notification: " + params);
 		}
 
 		if (params.get("priority") != null && params.get("priority") != "") {
@@ -173,6 +195,8 @@ public class TiFirebaseMessagingService extends FirebaseMessagingService
 			sendBroadcast(i);
 			return false;
 		}
+
+		Log.d(TAG, "Notification has content, building notification...");
 
 		Intent notificationIntent = new Intent(this, PushHandlerActivity.class);
 		notificationIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
@@ -291,6 +315,7 @@ public class TiFirebaseMessagingService extends FirebaseMessagingService
 		}
 
 		// Send
+		Log.d(TAG, "Showing notification");
 		NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
 		notificationManager.notify(id, builder.build());
 		return true;
